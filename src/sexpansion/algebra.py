@@ -76,12 +76,10 @@ class LieAlgebra:
         well-conditioned eigenbasis). Returns ``(indices, matrices)``.
         """
         adjoints = self.adjoint_generators()
-        indices = []
-        for i, matrix in enumerate(adjoints):
-            _, eigenvectors = np.linalg.eig(matrix)
-            if abs(np.linalg.det(eigenvectors)) > 1e-10:
-                indices.append(i)
-        return np.array(indices, dtype=np.int_), adjoints[indices]
+        _, eigenvectors = np.linalg.eig(adjoints)
+        determinants = np.abs(np.linalg.det(eigenvectors))
+        indices = np.flatnonzero(determinants > 1e-10)
+        return indices.astype(np.int_), adjoints[indices]
 
     def casimir(self) -> FloatArray:
         """Quadratic Casimir operator in the adjoint representation.
@@ -117,9 +115,19 @@ class LieAlgebra:
         subset sizes from ``n`` down to 1 and return the first pairwise
         commuting subset found.
         """
+        # Pairwise commutation as adjacency bitmasks, computed once; the
+        # subset test then needs no numpy call per pair. The instance is
+        # mutable (set_constant), so this is rebuilt on every call.
+        commutes = np.all(np.abs(self._constants) < _TOLERANCE, axis=2)
+        adjacency = [
+            (1 << i) | int(sum(1 << j for j in np.flatnonzero(commutes[i]))) for i in range(self.n)
+        ]
         for size in range(self.n, 0, -1):
+            if sum(mask.bit_count() >= size for mask in adjacency) < size:
+                continue  # not enough generators with enough commuting partners
             for subset in itertools.combinations(range(self.n), size):
-                if self.is_abelian_subset(subset):
+                mask = sum(1 << i for i in subset)
+                if all(adjacency[i] & mask == mask for i in subset):
                     return subset
         return ()
 
