@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -120,10 +121,12 @@ class ExpandedAlgebra:
         if not is_resonant(self.semigroup, resonance.s0, resonance.s1):
             raise ValueError(f"{resonance} is not a resonant decomposition of {self.semigroup!r}")
         new_active = np.zeros_like(self.active)
-        for gens, elems in ((v0, resonance.s0), (v1, resonance.s1)):
-            for i in gens:
-                for a in elems:
-                    new_active[i, a] = True
+        new_active[
+            np.ix_(np.asarray(v0, dtype=np.intp), np.asarray(resonance.s0, dtype=np.intp))
+        ] = True
+        new_active[
+            np.ix_(np.asarray(v1, dtype=np.intp), np.asarray(resonance.s1, dtype=np.intp))
+        ] = True
         return self._restricted(
             self.active & new_active, resonance=resonance, grading=(tuple(v0), tuple(v1))
         )
@@ -154,16 +157,27 @@ class ExpandedAlgebra:
         ``restricted=False`` for the full ``(n*m)`` square matrix of the
         Java ``cartanKillingMetric``.
         """
-        t = self.tensor
-        full: FloatArray = np.einsum("ialgkc,jbkclg->iajb", t, t).reshape(
-            self.n * self.m, self.n * self.m
-        )
+        full = self._full_metric
         if restricted is None:
             restricted = not bool(self.active.all())
         if not restricted:
             return full
         keep = np.flatnonzero(self.active.reshape(-1))
         return full[np.ix_(keep, keep)]
+
+    @cached_property
+    def _full_metric(self) -> FloatArray:
+        """The unrestricted metric, computed once per (frozen) instance.
+
+        Read-only, like :attr:`tensor`; the cache relies on the class not
+        using ``__slots__``.
+        """
+        t = self.tensor
+        full: FloatArray = np.einsum("ialgkc,jbkclg->iajb", t, t).reshape(
+            self.n * self.m, self.n * self.m
+        )
+        full.setflags(write=False)
+        return full
 
     def det(self) -> float:
         """Determinant of the Cartan-Killing metric.
@@ -221,13 +235,13 @@ class ExpandedAlgebra:
         zero: int | None = None,
     ) -> ExpandedAlgebra:
         """New algebra keeping only entries whose three index pairs are active."""
-        mask6 = (
-            new_active[:, :, None, None, None, None]
-            & new_active[None, None, :, :, None, None]
-            & new_active[None, None, None, None, :, :]
-        )
+        tensor = self.tensor.copy()
+        inactive = ~new_active
+        tensor[inactive] = 0.0
+        tensor[:, :, inactive] = 0.0
+        tensor[:, :, :, :, inactive] = 0.0
         return ExpandedAlgebra(
-            tensor=np.where(mask6, self.tensor, 0.0),
+            tensor=tensor,
             semigroup=self.semigroup,
             active=new_active,
             resonance=resonance if resonance is not None else self.resonance,
