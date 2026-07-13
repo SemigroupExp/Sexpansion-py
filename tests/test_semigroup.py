@@ -104,6 +104,18 @@ def test_anti_isomorphism_of_bands():
     assert result.anti_isomorphic
 
 
+def test_canonical_key():
+    s42 = load_semigroup(4, 42)
+    # Isomorphic semigroups share the key...
+    assert s42.canonical_key() == SN3.canonical_key()
+    # ...non-isomorphic ones do not.
+    trivial = Semigroup(np.zeros((3, 3), dtype=np.int_))
+    z3 = Semigroup(np.array([[0, 1, 2], [1, 2, 0], [2, 0, 1]]))
+    assert trivial.canonical_key() != z3.canonical_key()
+    # The key is invariant under any relabeling.
+    assert all(img.canonical_key() == SN3.canonical_key() for img in SN3.all_images())
+
+
 def test_equality_and_hash():
     a = Semigroup(np.array([[0, 1], [1, 0]]))
     b = Semigroup(np.array([[0, 1], [1, 0]]), sem_id=4)

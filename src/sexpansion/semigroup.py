@@ -9,9 +9,10 @@ converts on read, and the report helpers can print 1-based labels.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
@@ -112,8 +113,8 @@ class Semigroup:
 
     def all_images(self) -> Iterator[Semigroup]:
         """All semigroups isomorphic to this one (Java ``permute``)."""
-        for sigma in Permutation.all_of_degree(self.order):
-            yield self.permute(sigma)
+        for permuted in _all_permuted_tables(self.table):
+            yield Semigroup(permuted)
 
     def all_anti_images(self) -> Iterator[Semigroup]:
         """All semigroups anti-isomorphic to this one (Java ``antiPermute``)."""
@@ -133,12 +134,27 @@ class Semigroup:
         """
         if self.order != other.order:
             return IsoResult(isomorphic=False, anti_isomorphic=False)
-        isomorphic = any(img == other for img in self.all_images())
+        images = _all_permuted_tables(self.table)
+        isomorphic = bool((images == other.table).all(axis=(1, 2)).any())
         if self.is_commutative and other.is_commutative:
             anti = isomorphic
         else:
-            anti = any(img == other for img in self.all_anti_images())
+            anti_images = _all_permuted_tables(self.table.T)
+            anti = bool((anti_images == other.table).all(axis=(1, 2)).any())
         return IsoResult(isomorphic=isomorphic, anti_isomorphic=anti)
+
+    def canonical_key(self) -> bytes:
+        """A relabeling-invariant key: equal iff two semigroups are isomorphic.
+
+        The lexicographically smallest permuted multiplication table, as
+        bytes. Deduplicating a catalogue up to isomorphism becomes a
+        single dict pass over the keys, instead of pairwise
+        :meth:`isomorphism_test` scans.
+        """
+        if self.order > 255:
+            raise ValueError("canonical_key supports orders up to 255")
+        flat = _all_permuted_tables(self.table).reshape(-1, self.order * self.order)
+        return min(row.tobytes() for row in flat.astype(np.uint8))
 
     def selector(self) -> Selector:
         """Selector tensor ``K_ab^c`` of the semigroup (Java ``getSelector``)."""
@@ -163,3 +179,28 @@ class Semigroup:
 
     def __str__(self) -> str:
         return "\n".join(" ".join(str(v) for v in row) for row in self.table)
+
+
+@lru_cache(maxsize=8)
+def _permutation_arrays(n: int) -> tuple[IntArray, IntArray]:
+    """All permutations of degree ``n`` and their inverses, as ``(n!, n)`` arrays."""
+    # Shape (n!, n); for n == 0 this is the single empty permutation (1, 0).
+    perms = np.array(list(itertools.permutations(range(n))), dtype=np.intp)
+    inverses = np.argsort(perms, axis=1)
+    perms.setflags(write=False)
+    inverses.setflags(write=False)
+    return perms, inverses
+
+
+def _all_permuted_tables(table: IntArray) -> IntArray:
+    """Tables of all relabelings of ``table``, shape ``(n!, n, n)``.
+
+    Row ``p`` is ``B[i, j] = sigma(A[sigma^-1(i), sigma^-1(j)])`` for the
+    ``p``-th permutation in ``itertools.permutations`` order, matching
+    :meth:`Semigroup.permute` applied to ``Permutation.all_of_degree``.
+    """
+    n = table.shape[0]
+    perms, inverses = _permutation_arrays(n)
+    gathered = table[inverses[:, :, None], inverses[:, None, :]]
+    result: IntArray = perms[np.arange(perms.shape[0])[:, None, None], gathered]
+    return result
