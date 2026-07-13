@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
@@ -83,10 +84,14 @@ class Semigroup:
         (paper, Section 2.1; for the commutative semigroups used in
         S-expansions this is equivalent to the two-sided condition).
         """
-        for z in range(self.order):
-            if bool(np.all(self.table[:, z] == z)):
-                return z
-        return None
+        return self._zero
+
+    @cached_property
+    def _zero(self) -> int | None:
+        # Column z is constant-z exactly when z is absorbing. The cache
+        # relies on the class not using __slots__.
+        zeros = np.flatnonzero((self.table == np.arange(self.order)).all(axis=0))
+        return int(zeros[0]) if zeros.size else None
 
     def transpose(self) -> Semigroup:
         """Semigroup with the transposed multiplication table."""
