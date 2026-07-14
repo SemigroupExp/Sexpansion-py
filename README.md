@@ -104,8 +104,15 @@ Deliberate deviations from the Java code: the anti-isomorphism branch of
 
 ## Examples and tests
 
-The `examples/` folder ports ten representative programs from the paper
-(Appendix A). The test suite reproduces the paper's Table 5 catalogue
+The `examples/` folder contains ten Jupyter notebooks porting
+representative programs from the paper (Appendix A), from associativity
+checks up to the full S-expansion pipeline. They are committed with
+executed outputs, so the results can be read directly on GitHub without
+installing anything; to run them yourself, `pip install sexpansion
+jupyterlab` and open the notebooks (re-execute in order — later cells
+reuse earlier ones).
+
+The test suite reproduces the paper's Table 5 catalogue
 statistics (e.g. order 6: 2,059 semigroups with 25,512 resonances) and,
 when the Java repository is present, cross-checks against its captured
 outputs (`SEXPANSION_JAVA_OUTPUTS` environment variable; run the slow

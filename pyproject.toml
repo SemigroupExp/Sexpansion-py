@@ -35,7 +35,7 @@ packages = ["src/sexpansion"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests", "examples"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY", "RUF", "ANN"]
