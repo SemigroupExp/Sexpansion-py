@@ -51,8 +51,9 @@ files = ["src"]
 python_version = "3.13"
 
 [[tool.mypy.overrides]]
-module = "numpy.*"
+module = ["numpy", "numpy.*"]
 ignore_missing_imports = false
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

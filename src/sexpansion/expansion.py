@@ -189,7 +189,7 @@ class ExpandedAlgebra:
 
     def eigenvalues(self) -> FloatArray:
         """Eigenvalues of the (symmetric) Cartan-Killing metric, ascending."""
-        result: FloatArray = np.linalg.eigvalsh(self.cartan_killing_metric())
+        result: FloatArray = np.linalg.eigvalsh(self.cartan_killing_metric()).astype(np.float64)
         return result
 
     def eigenvectors(self) -> tuple[FloatArray, FloatArray]:
