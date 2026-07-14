@@ -48,6 +48,7 @@ ignore = ["ANN401"]
 [tool.mypy]
 strict = true
 files = ["src"]
+python_version = "3.13"
 
 [[tool.mypy.overrides]]
 module = "numpy.*"
